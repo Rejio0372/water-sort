@@ -4,6 +4,9 @@ A relaxing and addictive color-sorting puzzle game built with Flutter.
 
 ---
 
+[![AI-DECLARATION: pair](https://img.shields.io/badge/䷼%20AI--DECLARATION-pair-ffedd5?labelColor=ffedd5)](AI-DECLARATION.md)
+
+---
 
 | Google Play | F-Droid |
 | :---: | :---: |

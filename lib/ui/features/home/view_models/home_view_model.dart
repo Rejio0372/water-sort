@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:watersort/data/repositories/progress_repository.dart';
 import 'package:watersort/domain/models/user_progress.dart';
@@ -22,6 +25,7 @@ class HomeViewModelState {
     this.levelStars = const {},
     this.activeTheme = ThemePack.midnight,
     this.areThemesUnlocked = false,
+    this.customBackgroundImagePath,
   });
 
   final UserProgress? progress;
@@ -39,6 +43,7 @@ class HomeViewModelState {
   final Map<dynamic, dynamic> levelStars;
   final ThemePack activeTheme;
   final bool areThemesUnlocked;
+  final String? customBackgroundImagePath;
 
   HomeViewModelState copyWith({
     UserProgress? progress,
@@ -56,6 +61,7 @@ class HomeViewModelState {
     Map<dynamic, dynamic>? levelStars,
     ThemePack? activeTheme,
     bool? areThemesUnlocked,
+    String? Function()? customBackgroundImagePath,
   }) {
     return HomeViewModelState(
       progress: progress ?? this.progress,
@@ -63,25 +69,48 @@ class HomeViewModelState {
       profiles: profiles ?? this.profiles,
       isLoading: isLoading ?? this.isLoading,
       isTimerEnabled: isTimerEnabled ?? this.isTimerEnabled,
-      isSuperHardModeEnabled: isSuperHardModeEnabled ?? this.isSuperHardModeEnabled,
-      isBlurSolvedTubesEnabled: isBlurSolvedTubesEnabled ?? this.isBlurSolvedTubesEnabled,
-      isInstantPouringEnabled: isInstantPouringEnabled ?? this.isInstantPouringEnabled,
+      isSuperHardModeEnabled:
+          isSuperHardModeEnabled ?? this.isSuperHardModeEnabled,
+      isBlurSolvedTubesEnabled:
+          isBlurSolvedTubesEnabled ?? this.isBlurSolvedTubesEnabled,
+      isInstantPouringEnabled:
+          isInstantPouringEnabled ?? this.isInstantPouringEnabled,
       isHintHelperEnabled: isHintHelperEnabled ?? this.isHintHelperEnabled,
-      isUndoDecrementsMovesEnabled: isUndoDecrementsMovesEnabled ?? this.isUndoDecrementsMovesEnabled,
-      isSoundEffectsEnabled: isSoundEffectsEnabled ?? this.isSoundEffectsEnabled,
+      isUndoDecrementsMovesEnabled:
+          isUndoDecrementsMovesEnabled ?? this.isUndoDecrementsMovesEnabled,
+      isSoundEffectsEnabled:
+          isSoundEffectsEnabled ?? this.isSoundEffectsEnabled,
       tubeSize: tubeSize ?? this.tubeSize,
       levelStars: levelStars ?? this.levelStars,
       activeTheme: activeTheme ?? this.activeTheme,
       areThemesUnlocked: areThemesUnlocked ?? this.areThemesUnlocked,
+      customBackgroundImagePath: customBackgroundImagePath != null
+          ? customBackgroundImagePath()
+          : this.customBackgroundImagePath,
     );
   }
 }
 
 class HomeViewModel extends StateNotifier<HomeViewModelState> {
   HomeViewModel({required this._progressRepository})
-      : super(const HomeViewModelState());
+      : super(const HomeViewModelState()) {
+    _progressSubscription = _progressRepository.onProgressChanged.listen((progress) {
+      final levelStars = _progressRepository.getAllLevelStars();
+      state = state.copyWith(
+        progress: progress,
+        levelStars: levelStars,
+      );
+    });
+  }
 
   final ProgressRepository _progressRepository;
+  StreamSubscription<UserProgress>? _progressSubscription;
+
+  @override
+  void dispose() {
+    _progressSubscription?.cancel();
+    super.dispose();
+  }
 
   Future<void> loadProgress() async {
     state = state.copyWith(isLoading: true);
@@ -100,6 +129,7 @@ class HomeViewModel extends StateNotifier<HomeViewModelState> {
       final levelStars = _progressRepository.getAllLevelStars();
       final themeName = _progressRepository.getThemePack();
       final areThemesUnlocked = _progressRepository.areThemesUnlocked();
+      final customBgPath = _progressRepository.getCustomBackgroundImagePath();
       final theme = ThemePack.values.firstWhere(
         (t) => t.name == themeName,
         orElse: () => ThemePack.midnight,
@@ -120,11 +150,41 @@ class HomeViewModel extends StateNotifier<HomeViewModelState> {
         levelStars: levelStars,
         activeTheme: theme,
         areThemesUnlocked: areThemesUnlocked,
+        customBackgroundImagePath: () => customBgPath,
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false);
     }
+  }
+
+  Future<void> setCustomBackgroundImage(String sourcePath) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final fileName = 'custom_bg_${DateTime.now().millisecondsSinceEpoch}.png';
+    final savedFile = await File(sourcePath).copy('${appDir.path}/$fileName');
+    if (state.customBackgroundImagePath != null) {
+      try {
+        final oldFile = File(state.customBackgroundImagePath!);
+        if (await oldFile.exists()) {
+          await oldFile.delete();
+        }
+      } catch (_) {}
+    }
+    await _progressRepository.setCustomBackgroundImagePath(savedFile.path);
+    state = state.copyWith(customBackgroundImagePath: () => savedFile.path);
+  }
+
+  Future<void> removeCustomBackgroundImage() async {
+    if (state.customBackgroundImagePath != null) {
+      try {
+        final oldFile = File(state.customBackgroundImagePath!);
+        if (await oldFile.exists()) {
+          await oldFile.delete();
+        }
+      } catch (_) {}
+    }
+    await _progressRepository.setCustomBackgroundImagePath(null);
+    state = state.copyWith(customBackgroundImagePath: () => null);
   }
 
   Future<void> toggleTimer() async {

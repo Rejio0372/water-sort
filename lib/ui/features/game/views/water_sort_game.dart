@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -176,7 +177,13 @@ class WaterSortGame extends FlameGame with TapCallbacks {
   }
 
   @override
-  Color backgroundColor() => AppColors.bg;
+  Color backgroundColor() {
+    if (_state.customBackgroundImagePath != null &&
+        File(_state.customBackgroundImagePath!).existsSync()) {
+      return Colors.transparent;
+    }
+    return AppColors.bg;
+  }
 
   @override
   void onGameResize(Vector2 size) {

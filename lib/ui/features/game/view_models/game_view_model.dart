@@ -46,6 +46,7 @@ class GameViewModelState {
     this.tubeSize = 'medium',
     this.hintFromIndex,
     this.hintToIndex,
+    this.customBackgroundImagePath,
   });
 
   final GameLevel? level;
@@ -74,6 +75,7 @@ class GameViewModelState {
   final String tubeSize;
   final int? hintFromIndex;
   final int? hintToIndex;
+  final String? customBackgroundImagePath;
 
   bool get canUndo => moveHistory.isNotEmpty && !isComplete && !isTimeOut && pouringFromIndex == null;
 
@@ -105,6 +107,7 @@ class GameViewModelState {
     String? tubeSize,
     int? Function()? hintFromIndex,
     int? Function()? hintToIndex,
+    String? Function()? customBackgroundImagePath,
   }) {
     return GameViewModelState(
       level: level ?? this.level,
@@ -138,6 +141,9 @@ class GameViewModelState {
           hintFromIndex != null ? hintFromIndex() : this.hintFromIndex,
       hintToIndex:
           hintToIndex != null ? hintToIndex() : this.hintToIndex,
+      customBackgroundImagePath: customBackgroundImagePath != null
+          ? customBackgroundImagePath()
+          : this.customBackgroundImagePath,
     );
   }
 }
@@ -235,6 +241,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
         final isUndoDecrementsMoves = _progressRepository.isUndoDecrementsMovesEnabled();
         final isSoundEffects = _progressRepository.isSoundEffectsEnabled();
         final tubeSize = _progressRepository.getTubeSize();
+        final customBgPath = _progressRepository.getCustomBackgroundImagePath();
 
         state = GameViewModelState(
           level: level,
@@ -247,6 +254,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
           isUndoDecrementsMovesEnabled: isUndoDecrementsMoves,
           isSoundEffectsEnabled: isSoundEffects,
           tubeSize: tubeSize,
+          customBackgroundImagePath: customBgPath,
         );
 
         if (savedMap['timeLeft'] != null) {
@@ -263,6 +271,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
       final isUndoDecrementsMoves = _progressRepository.isUndoDecrementsMovesEnabled();
       final isSoundEffects = _progressRepository.isSoundEffectsEnabled();
       final tubeSize = _progressRepository.getTubeSize();
+      final customBgPath = _progressRepository.getCustomBackgroundImagePath();
       debugPrint('LOAD LEVEL: isSuperHard = $isSuperHard');
       state = GameViewModelState(
         level: level,
@@ -273,6 +282,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
         isUndoDecrementsMovesEnabled: isUndoDecrementsMoves,
         isSoundEffectsEnabled: isSoundEffects,
         tubeSize: tubeSize,
+        customBackgroundImagePath: customBgPath,
       );
 
       _progressRepository.clearActiveLevelState();
@@ -300,6 +310,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     final isUndoDecrementsMoves = _progressRepository.isUndoDecrementsMovesEnabled();
     final isSoundEffects = _progressRepository.isSoundEffectsEnabled();
     final tubeSize = _progressRepository.getTubeSize();
+    final customBgPath = _progressRepository.getCustomBackgroundImagePath();
     state = GameViewModelState(
       isLoading: true,
       isRandomMode: true,
@@ -314,6 +325,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
       isUndoDecrementsMovesEnabled: isUndoDecrementsMoves,
       isSoundEffectsEnabled: isSoundEffects,
       tubeSize: tubeSize,
+      customBackgroundImagePath: customBgPath,
     );
 
     try {
@@ -371,6 +383,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
           isUndoDecrementsMovesEnabled: isUndoDecrementsMoves,
           isSoundEffectsEnabled: isSoundEffects,
           tubeSize: tubeSize,
+          customBackgroundImagePath: customBgPath,
         );
 
         if (savedMap['timeLeft'] != null) {

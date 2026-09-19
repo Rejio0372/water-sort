@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:watersort/domain/models/user_progress.dart';
 import 'package:watersort/domain/models/user_profile.dart';
 import '../services/hive_service.dart';
@@ -8,6 +9,11 @@ class ProgressRepository {
   final HiveService _hiveService;
   UserProgress? _cachedProgress;
   String? _cachedActiveProfileId;
+
+  final StreamController<UserProgress> _progressController =
+      StreamController<UserProgress>.broadcast();
+
+  Stream<UserProgress> get onProgressChanged => _progressController.stream;
 
   Future<String> _getActiveProfileId() async {
     if (_cachedActiveProfileId != null) return _cachedActiveProfileId!;
@@ -34,6 +40,7 @@ class ProgressRepository {
 
   Future<void> saveProgress(UserProgress progress) async {
     _cachedProgress = progress;
+    _progressController.add(progress);
     final activeId = await _getActiveProfileId();
     await _hiveService.saveProgress(activeId, progress);
   }
@@ -51,7 +58,9 @@ class ProgressRepository {
   }
 
   Future<void> resetProgress() async {
-    _cachedProgress = null;
+    const emptyProgress = UserProgress();
+    _cachedProgress = emptyProgress;
+    _progressController.add(emptyProgress);
     final activeId = await _getActiveProfileId();
     await _hiveService.clearProgress(activeId);
   }
@@ -199,5 +208,13 @@ class ProgressRepository {
 
   Future<void> setThemesUnlocked(bool unlocked) async {
     await _hiveService.setThemesUnlocked(unlocked);
+  }
+
+  String? getCustomBackgroundImagePath() {
+    return _hiveService.getCustomBackgroundImagePath();
+  }
+
+  Future<void> setCustomBackgroundImagePath(String? path) async {
+    await _hiveService.setCustomBackgroundImagePath(path);
   }
 }

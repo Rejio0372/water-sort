@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flame/game.dart';
@@ -113,13 +114,27 @@ class _GameViewState extends ConsumerState<GameView> {
       }
     });
 
-
+    final bool hasCustomBg = state.customBackgroundImagePath != null &&
+        File(state.customBackgroundImagePath!).existsSync();
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: SafeArea(
-        child: Column(
-          children: [
+      body: Container(
+        decoration: hasCustomBg
+            ? BoxDecoration(
+                image: DecorationImage(
+                  image: FileImage(File(state.customBackgroundImagePath!)),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withValues(alpha: 0.3),
+                    BlendMode.darken,
+                  ),
+                ),
+              )
+            : null,
+        child: SafeArea(
+          child: Column(
+            children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Container(
@@ -252,57 +267,47 @@ class _GameViewState extends ConsumerState<GameView> {
                   : _buildGame(state),
             ),
             _buildBottomBar(state),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildBottomBar(GameViewModelState state) {
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Color(0xFF141418),
-        border: Border(
-          top: BorderSide(
-            color: Color(0xFF22222A),
-            width: 1.0,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E24).withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFF2E2E3A),
+            width: 1.2,
           ),
         ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Undo Button
-          Expanded(
-            child: GestureDetector(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            GestureDetector(
               onTap: state.canUndo
                   ? () => ref
                         .read(gameViewModelProvider.notifier)
                         .undoMove()
                   : null,
               behavior: HitTestBehavior.opaque,
-              child: Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: state.canUndo
-                      ? AppColors.accent.withValues(alpha: 0.12)
-                      : const Color(0xFF1C1C22),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: state.canUndo
-                        ? AppColors.accent.withValues(alpha: 0.35)
-                        : const Color(0xFF26262E),
-                    width: 1.0,
-                  ),
-                ),
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.undo_rounded,
-                      size: 16,
+                      size: 18,
                       color: state.canUndo
                           ? AppColors.accent
                           : AppColors.subtext.withValues(alpha: 0.35),
@@ -312,7 +317,7 @@ class _GameViewState extends ConsumerState<GameView> {
                       'UNDO',
                       style: TextStyle(
                         fontFamily: 'BebasNeue',
-                        fontSize: 14,
+                        fontSize: 15,
                         fontWeight: FontWeight.w900,
                         color: state.canUndo
                             ? AppColors.accent
@@ -324,34 +329,20 @@ class _GameViewState extends ConsumerState<GameView> {
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          // Moves Counter
-          Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C1C22),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: const Color(0xFF26262E),
-                width: 1.0,
-              ),
-            ),
-            child: Row(
+            Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'MOVES',
                   style: TextStyle(
                     fontFamily: 'BebasNeue',
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.subtext,
                     letterSpacing: 0.8,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   '${state.moveCount}',
                   style: TextStyle(
@@ -363,12 +354,8 @@ class _GameViewState extends ConsumerState<GameView> {
                 ),
               ],
             ),
-          ),
-          if (state.isHintHelperEnabled) ...[
-            const SizedBox(width: 12),
-            // Hint Button
-            Expanded(
-              child: GestureDetector(
+            if (state.isHintHelperEnabled)
+              GestureDetector(
                 onTap: () {
                   final success = ref.read(gameViewModelProvider.notifier).showHint();
                   if (!success) {
@@ -382,22 +369,14 @@ class _GameViewState extends ConsumerState<GameView> {
                   }
                 },
                 behavior: HitTestBehavior.opaque,
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFB300).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: const Color(0xFFFFB300).withValues(alpha: 0.35),
-                      width: 1.0,
-                    ),
-                  ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: const [
                       Icon(
                         Icons.lightbulb_rounded,
-                        size: 16,
+                        size: 18,
                         color: Color(0xFFFFB300),
                       ),
                       SizedBox(width: 6),
@@ -405,7 +384,7 @@ class _GameViewState extends ConsumerState<GameView> {
                         'HINT',
                         style: TextStyle(
                           fontFamily: 'BebasNeue',
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w900,
                           color: Color(0xFFFFB300),
                           letterSpacing: 0.8,
@@ -415,9 +394,8 @@ class _GameViewState extends ConsumerState<GameView> {
                   ),
                 ),
               ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -524,7 +502,10 @@ class _GameViewState extends ConsumerState<GameView> {
                     text: 'Home',
                     isSecondary: true,
                     height: 50,
-                    onPressed: () {
+                    onPressed: () async {
+                      final notifier = ref.read(gameViewModelProvider.notifier);
+                      await notifier.completeLevel();
+                      if (!mounted) return;
                       Navigator.pop(context);
                       Navigator.pop(context);
                     },

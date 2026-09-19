@@ -240,4 +240,18 @@ class HiveService {
     await _settingsBox.put('themes_unlocked', unlocked);
     await _settingsBox.put('${profileId}_themes_unlocked', unlocked);
   }
+
+  String? getCustomBackgroundImagePath() {
+    final profileId = _getActiveProfileIdSync();
+    return _settingsBox.get('${profileId}_custom_bg_path')?.toString();
+  }
+
+  Future<void> setCustomBackgroundImagePath(String? path) async {
+    final profileId = _getActiveProfileIdSync();
+    if (path == null || path.isEmpty) {
+      await _settingsBox.delete('${profileId}_custom_bg_path');
+    } else {
+      await _settingsBox.put('${profileId}_custom_bg_path', path);
+    }
+  }
 }

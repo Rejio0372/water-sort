@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,8 +25,7 @@ class _LevelSelectViewState extends ConsumerState<LevelSelectView> {
     final highestCompleted = state.progress?.highestLevelCompleted ?? 0;
     final currentLevel = state.progress?.currentLevel ?? 1;
 
-    // Display a dynamic grid of levels, keeping a buffer of 20 levels ahead of current progress
-    final int totalLevelsToShow = math.max(60, currentLevel + 20);
+    final int totalLevelsToShow = currentLevel + 10;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
