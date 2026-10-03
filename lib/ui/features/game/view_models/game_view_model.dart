@@ -768,7 +768,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     final currentKey = _stateKey(level.tubes);
 
     if (_cachedSolutionKey == currentKey && _cachedSolution != null) {
-      return _applyCachedHint(currentKey);
+      return await _applyCachedHint(currentKey);
     }
 
     final requestVersion = ++_hintRequestVersion;
@@ -805,7 +805,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     if (result.status == LevelSolveStatus.found) {
       _cachedSolution = List<WaterSortMove>.from(result.moves);
       _cachedSolutionKey = currentKey;
-      return _applyCachedHint(currentKey);
+      return await _applyCachedHint(currentKey);
     }
     _cachedSolution = null;
     _cachedSolutionKey = null;
@@ -817,7 +817,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     return false;
   }
 
-  bool _applyCachedHint(String currentKey) {
+  Future<bool> _applyCachedHint(String currentKey) async {
     if (!mounted || _cachedSolutionKey != currentKey || _cachedSolution == null || _cachedSolution!.isEmpty) {
       return false;
     }
@@ -827,13 +827,13 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
       _cachedSolutionKey = null;
       return false;
     }
-    HapticFeedback.lightImpact();
     state = state.copyWith(
       selectedTubeIndex: () => null,
-      hintFromIndex: () => nextMove.fromIndex,
-      hintToIndex: () => nextMove.toIndex,
+      hintFromIndex: () => null,
+      hintToIndex: () => null,
       hintMessage: () => null,
     );
+    await _pourWater(nextMove.fromIndex, nextMove.toIndex);
     return true;
   }
 

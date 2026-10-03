@@ -276,9 +276,6 @@ class _GameViewState extends ConsumerState<GameView> {
 
   Widget _buildBottomBar(GameViewModelState state) {
     final hintEnabled = state.canShowHint;
-    final hintInstruction = state.hintFromIndex != null && state.hintToIndex != null
-        ? 'Pour tube ${state.hintFromIndex! + 1} into tube ${state.hintToIndex! + 1}.'
-        : state.hintMessage ?? 'Tap the lightbulb for the next move.';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -295,119 +292,93 @@ class _GameViewState extends ConsumerState<GameView> {
             width: 1.2,
           ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            GestureDetector(
+              onTap: state.canUndo
+                  ? () => ref.read(gameViewModelProvider.notifier).undoMove()
+                  : null,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.undo_rounded,
+                      size: 18,
+                      color: state.canUndo
+                          ? AppColors.accent
+                          : AppColors.subtext.withValues(alpha: 0.35),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'UNDO',
+                      style: TextStyle(
+                        fontFamily: 'BebasNeue',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: state.canUndo
+                            ? AppColors.accent
+                            : AppColors.subtext.withValues(alpha: 0.35),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: GestureDetector(
-                      onTap: state.canUndo
-                          ? () => ref.read(gameViewModelProvider.notifier).undoMove()
-                          : null,
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.undo_rounded,
-                              size: 18,
-                              color: state.canUndo
-                                  ? AppColors.accent
-                                  : AppColors.subtext.withValues(alpha: 0.35),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'UNDO',
-                              style: TextStyle(
-                                fontFamily: 'BebasNeue',
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                                color: state.canUndo
-                                    ? AppColors.accent
-                                    : AppColors.subtext.withValues(alpha: 0.35),
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                Text(
+                  'MOVES',
+                  style: TextStyle(
+                    fontFamily: 'BebasNeue',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.subtext,
+                    letterSpacing: 0.8,
                   ),
                 ),
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'MOVES',
-                        style: TextStyle(
-                          fontFamily: 'BebasNeue',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.subtext,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${state.moveCount}',
-                        style: TextStyle(
-                          fontFamily: 'BebasNeue',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.headingWhite,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Semantics(
-                      button: true,
-                      label: 'Show next move hint',
-                      enabled: hintEnabled,
-                      child: Tooltip(
-                        message: 'Show next move',
-                        child: IconButton(
-                          onPressed: hintEnabled
-                              ? () => ref.read(gameViewModelProvider.notifier).showHint()
-                              : null,
-                          icon: state.isSolvingHint
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.lightbulb_rounded),
-                          color: const Color(0xFFFFB300),
-                          disabledColor: AppColors.subtext.withValues(alpha: 0.35),
-                          tooltip: 'HINT',
-                        ),
-                      ),
-                    ),
+                const SizedBox(width: 6),
+                Text(
+                  '${state.moveCount}',
+                  style: TextStyle(
+                    fontFamily: 'BebasNeue',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.headingWhite,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              hintInstruction,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'BebasNeue',
-                fontSize: 12,
-                color: state.hintFromIndex != null ? const Color(0xFFFFB300) : AppColors.subtext,
-                letterSpacing: 0.3,
+            Semantics(
+              button: true,
+              label: 'Make next move',
+              enabled: hintEnabled,
+              child: Tooltip(
+                message: 'Make next move',
+                child: IconButton(
+                  onPressed: hintEnabled
+                      ? () async {
+                          final notifier = ref.read(gameViewModelProvider.notifier);
+                          final success = await notifier.showHint();
+                          if (!mounted || success) return;
+                          final message = ref.read(gameViewModelProvider).hintMessage;
+                          if (message == null) return;
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+                          );
+                        }
+                      : null,
+                  icon: const Icon(Icons.lightbulb_rounded),
+                  color: const Color(0xFFFFB300),
+                  disabledColor: AppColors.subtext.withValues(alpha: 0.35),
+                  tooltip: 'HINT',
+                ),
               ),
             ),
           ],

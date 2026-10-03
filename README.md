@@ -3,20 +3,19 @@
 ## Solver fork
 
 This fork adds an always-visible **HINT** button beside the move controls.
-Tap it to calculate a complete solution offline and see the next pour, such as
-**Pour tube 2 into tube 5**. Tubes are numbered from left to right, top to bottom;
-the source glows gold and the destination glows green. Follow the instruction,
-then tap HINT again for the next step. Hints do not pour automatically or add moves.
+Tap it to calculate a solution offline and automatically perform exactly the
+next legal pour. The normal pour animation, move count, history, undo, and
+completion flow are preserved. Each tap performs one move.
 
-The search runs in a background isolate. Following the proposed solution reuses
+The search runs in a background isolate. Each automatically executed step reuses
 the remaining steps; changing the board, undoing, restarting, or loading another
 level invalidates stale results. A search has a four-second, 150,000-state and
 384-move budget. Reaching a budget is reported separately from an exhausted
 search. Solutions are valid paths, and are not guaranteed to be the shortest.
 
-中文：点击底部右侧灯泡按钮，查看“第 X 瓶倒入第 Y 瓶”的下一步指令。
-按试管编号操作：金色是来源瓶，绿色是目标瓶。计算完全离线，按提示继续玩
-会复用已计算的方案。复杂局面可能达到搜索上限；此时可撤销或重开。
+中文：点击底部右侧灯泡按钮，离线计算并自动执行恰好下一步倒水。
+保留原有倒水动画、步数、撤销和完成流程，不显示额外编号或提示高亮，
+不会一次自动通关。复杂局面可能达到搜索上限；此时可撤销或重开。
 
 ### Build and verify
 

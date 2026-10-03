@@ -641,7 +641,6 @@ class TubeComponent extends PositionComponent {
     }
 
     canvas.restore();
-    _renderTubeNumber(canvas);
 
     final glowBorderWidth = isSelected || isHintSource || isHintTarget ? 2.8 : borderWidth;
     Paint borderPaint;
@@ -749,25 +748,6 @@ class TubeComponent extends PositionComponent {
         ..close();
       canvas.drawPath(arrowPath, arrowPaint);
     }
-  }
-
-  void _renderTubeNumber(Canvas canvas) {
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: '${index + 1}',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          shadows: [Shadow(color: Colors.black, blurRadius: 3)],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final center = Offset(size.x / 2, size.y - textPainter.height - 7);
-    final platePaint = Paint()..color = Colors.black.withValues(alpha: 0.3);
-    canvas.drawCircle(center, textPainter.width / 2 + 3, platePaint);
-    textPainter.paint(canvas, Offset(center.dx - textPainter.width / 2, center.dy - textPainter.height / 2));
   }
 
   void _renderLiquid(Canvas canvas) {

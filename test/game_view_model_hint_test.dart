@@ -10,6 +10,8 @@ import 'package:watersort/domain/use_cases/level_solver.dart';
 import 'package:watersort/ui/features/game/view_models/game_view_model.dart';
 
 class _FakeProgressRepository implements ProgressRepository {
+  bool instantPouring = false;
+
   @override
   bool isTimerEnabled() => false;
 
@@ -20,7 +22,7 @@ class _FakeProgressRepository implements ProgressRepository {
   bool isBlurSolvedTubesEnabled() => false;
 
   @override
-  bool isInstantPouringEnabled() => true;
+  bool isInstantPouringEnabled() => instantPouring;
 
   @override
   bool isHintHelperEnabled() => false;
@@ -113,11 +115,18 @@ void main() {
 
   test('default compute runner returns a real hint', () async {
     expect(await model.showHint(), isTrue);
-    expect(model.state.hintFromIndex, isNotNull);
-    expect(model.state.hintToIndex, isNotNull);
+    expect(model.state.hintFromIndex, isNull);
+    expect(model.state.hintToIndex, isNull);
+    expect(model.state.pouringFromIndex, isNotNull);
+    expect(model.state.pouringToIndex, isNotNull);
+    expect(model.state.moveCount, 0);
+    expect(model.state.moveHistory, isEmpty);
+    await model.completePendingPour();
+    expect(model.state.moveCount, 1);
+    expect(model.state.moveHistory, hasLength(1));
   });
 
-  test('repeated hint does not consume or recalculate the first move', () async {
+  test('repeated operations advance the cache without recalculating', () async {
     var calls = 0;
     model.dispose();
     model = GameViewModel(
@@ -133,35 +142,52 @@ void main() {
     );
     await model.loadLevel(1);
     expect(await model.showHint(), isTrue);
-    expect(await model.showHint(), isTrue);
+    expect(model.state.pouringFromIndex, 0);
+    expect(model.state.pouringToIndex, 2);
+    expect(model.state.moveCount, 0);
+    expect(await model.showHint(), isFalse);
     expect(calls, 1);
-    expect(model.state.hintFromIndex, 0);
-    expect(model.state.hintToIndex, 2);
-  });
-
-  test('executing the recommended pour advances the cached solution', () async {
-    var calls = 0;
-    model.dispose();
-    model = GameViewModel(
-      progressRepository: repository,
-      levelGenerator: generator,
-      hintRunner: (tubes) async {
-        calls++;
-        return _found([
-          WaterSortMove(fromIndex: 0, toIndex: 2),
-          WaterSortMove(fromIndex: 1, toIndex: 0),
-        ]);
-      },
-    );
-    await model.loadLevel(1);
-    await model.showHint();
-    model.selectTube(0);
-    model.selectTube(2);
+    expect(model.state.pouringFromIndex, 0);
     await model.completePendingPour();
     expect(await model.showHint(), isTrue);
     expect(calls, 1);
-    expect(model.state.hintFromIndex, 1);
-    expect(model.state.hintToIndex, 0);
+    expect(model.state.pouringFromIndex, 1);
+    expect(model.state.pouringToIndex, 0);
+    expect(model.state.hintFromIndex, isNull);
+    expect(model.state.hintToIndex, isNull);
+  });
+
+  test('instant pouring applies one step and undo restores the board', () async {
+    var calls = 0;
+    model.dispose();
+    repository.instantPouring = true;
+    model = GameViewModel(
+      progressRepository: repository,
+      levelGenerator: generator,
+      hintRunner: (tubes) async {
+        calls++;
+        return _found([
+          WaterSortMove(fromIndex: 0, toIndex: 2),
+          WaterSortMove(fromIndex: 1, toIndex: 0),
+        ]);
+      },
+    );
+    await model.loadLevel(1);
+    final originalTubes = model.state.level!.tubes;
+    expect(await model.showHint(), isTrue);
+    expect(calls, 1);
+    expect(model.state.pouringFromIndex, isNull);
+    expect(model.state.pouringToIndex, isNull);
+    expect(model.state.moveCount, 1);
+    expect(model.state.moveHistory, hasLength(1));
+    expect(model.state.level!.tubes, isNot(originalTubes));
+    expect(model.state.hintFromIndex, isNull);
+    expect(model.state.hintToIndex, isNull);
+    model.undoMove();
+    expect(model.state.level!.tubes, originalTubes);
+    expect(model.state.moveHistory, isEmpty);
+    expect(await model.showHint(), isTrue);
+    expect(calls, 2);
   });
 
   test('busy guard prevents a second request and limit is not shown as no solution', () async {
@@ -193,6 +219,8 @@ void main() {
     expect(await first, isFalse);
     expect(model.state.hintMessage, contains('limit'));
     expect(model.state.hintMessage, isNot(contains('No solution')));
+    expect(model.state.pouringFromIndex, isNull);
+    expect(model.state.moveCount, 0);
   });
 
   test('different state invalidates old cache and requests a fresh hint', () async {
@@ -231,6 +259,7 @@ void main() {
     expect(await request, isFalse);
     expect(model.state.hintFromIndex, isNull);
     expect(model.state.isSolvingHint, isFalse);
+    expect(model.state.moveCount, 1);
 
     final secondPending = Completer<LevelSolveResult>();
     model.dispose();
