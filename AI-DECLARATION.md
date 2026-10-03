@@ -14,6 +14,13 @@ This format is based on [AI-DECLARATION.md](https://ai-declaration.md/en/0.1.2).
 
 ## Notes
 
+### Solver fork declaration
+
+The solver fork changes were developed with OpenAI Codex: GPT-6.1 Sol assisted
+with design and review, and GPT-5.6 Luna implemented the bounded feature contract.
+Automated tests and timing samples verify the fork. The following historical
+statements describe the upstream project before this fork.
+
 - First to all , which llm was used , it is - Local LLM is used via [Ollama](https://ollama.com/) paired with [OpenCode](https://opencode.ai/). No online LLM was ever used in project development.
 
 ### What LLM/AI is used for
@@ -27,8 +34,8 @@ This format is based on [AI-DECLARATION.md](https://ai-declaration.md/en/0.1.2).
 
 ### Expectations for contributors
 
-If you use AI to help write a contribution, **please just declare it first**. PR which can be done easily with simple logic will be rejected as LLM puts a lot of overthinking , which was never necessary for specific problem PR trying to solve. 
+If you use AI to help write a contribution, **please just declare it first**. PR which can be done easily with simple logic will be rejected as LLM puts a lot of overthinking , which was never necessary for specific problem PR trying to solve.
 
 ### My Thoughts
 
-My thoughts on LLM is that i use LLM in area where i lack personally , I'm not a UI/UX designer : I can't bring the multiple best color pallate to app which removes customization barriers , I have maintained a flutter app for 4 years now , it had only two colors which are white and black , terrible design for years. Also I'm not native english speaker , A clear description on every button , a more familiar term being used on a button is what i want , I have tried doing it manually one time but it's not good. LLM helped me a lot in improving these two things personally. 
+My thoughts on LLM is that i use LLM in area where i lack personally , I'm not a UI/UX designer : I can't bring the multiple best color pallate to app which removes customization barriers , I have maintained a flutter app for 4 years now , it had only two colors which are white and black , terrible design for years. Also I'm not native english speaker , A clear description on every button , a more familiar term being used on a button is what i want , I have tried doing it manually one time but it's not good. LLM helped me a lot in improving these two things personally.

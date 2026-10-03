@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,36 @@ import 'package:watersort/domain/models/game_level.dart';
 import 'package:watersort/domain/models/tube.dart';
 import 'package:watersort/domain/use_cases/level_generator.dart';
 import 'package:watersort/domain/use_cases/level_solver.dart';
+
+typedef HintSolverRunner = Future<LevelSolveResult> Function(List<Tube> tubes);
+
+Map<String, dynamic> _solveHintInIsolate(Map<String, dynamic> payload) {
+  final tubes = (payload['tubes'] as List<dynamic>).map((tube) {
+    final map = tube as Map<dynamic, dynamic>;
+    return Tube(
+      capacity: map['capacity'] as int,
+      colors: (map['colors'] as List<dynamic>)
+          .map((value) => Color(value as int))
+          .toList(),
+    );
+  }).toList();
+  final solver = LevelSolver();
+  return solver.solveDetailed(tubes).toMap();
+}
+
+Future<LevelSolveResult> _defaultHintRunner(List<Tube> tubes) async {
+  final payload = <String, dynamic>{
+    'tubes': tubes
+        .map((tube) => {
+              'capacity': tube.capacity,
+              'colors': tube.colors.map((color) => color.toARGB32()).toList(),
+            })
+        .toList(),
+  };
+  // compute requires a top-level callback and a transferable color snapshot.
+  final result = await compute<Map<String, dynamic>, Map<String, dynamic>>(_solveHintInIsolate, payload);
+  return LevelSolveResult.fromMap(result);
+}
 
 @immutable
 class MoveSnapshot {
@@ -46,6 +77,8 @@ class GameViewModelState {
     this.tubeSize = 'medium',
     this.hintFromIndex,
     this.hintToIndex,
+    this.isSolvingHint = false,
+    this.hintMessage,
     this.customBackgroundImagePath,
   });
 
@@ -75,9 +108,18 @@ class GameViewModelState {
   final String tubeSize;
   final int? hintFromIndex;
   final int? hintToIndex;
+  final bool isSolvingHint;
+  final String? hintMessage;
   final String? customBackgroundImagePath;
 
   bool get canUndo => moveHistory.isNotEmpty && !isComplete && !isTimeOut && pouringFromIndex == null;
+
+  bool get canShowHint => level != null &&
+      !isLoading &&
+      !isComplete &&
+      !isTimeOut &&
+      !isSolvingHint &&
+      pouringFromIndex == null;
 
 
   GameViewModelState copyWith({
@@ -107,6 +149,8 @@ class GameViewModelState {
     String? tubeSize,
     int? Function()? hintFromIndex,
     int? Function()? hintToIndex,
+    bool? isSolvingHint,
+    String? Function()? hintMessage,
     String? Function()? customBackgroundImagePath,
   }) {
     return GameViewModelState(
@@ -141,6 +185,8 @@ class GameViewModelState {
           hintFromIndex != null ? hintFromIndex() : this.hintFromIndex,
       hintToIndex:
           hintToIndex != null ? hintToIndex() : this.hintToIndex,
+      isSolvingHint: isSolvingHint ?? this.isSolvingHint,
+      hintMessage: hintMessage != null ? hintMessage() : this.hintMessage,
       customBackgroundImagePath: customBackgroundImagePath != null
           ? customBackgroundImagePath()
           : this.customBackgroundImagePath,
@@ -152,12 +198,33 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
   GameViewModel({
     required this._progressRepository,
     required this._levelGenerator,
-  }) : super(const GameViewModelState());
+    HintSolverRunner? hintRunner,
+  })  : _hintRunner = hintRunner ?? _defaultHintRunner,
+        super(const GameViewModelState());
 
   final ProgressRepository _progressRepository;
   final LevelGenerator _levelGenerator;
+  final HintSolverRunner _hintRunner;
 
   Timer? _timer;
+  int _hintRequestVersion = 0;
+
+  void _invalidateHintRequest({bool clearCache = false}) {
+    _hintRequestVersion++;
+    if (clearCache) {
+      _cachedSolution = null;
+      _cachedSolutionKey = null;
+    }
+    if (!mounted) return;
+    if (state.isSolvingHint || state.hintFromIndex != null || state.hintToIndex != null || state.hintMessage != null) {
+      state = state.copyWith(
+        isSolvingHint: false,
+        hintFromIndex: () => null,
+        hintToIndex: () => null,
+        hintMessage: () => null,
+      );
+    }
+  }
 
   bool _shouldHaveTimer({required bool isRandom, required int levelNumber, required String difficulty}) {
     if (!_progressRepository.isTimerEnabled()) {
@@ -185,6 +252,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
       final newTime = state.timeLeft! - 1;
       if (newTime == 0) {
         timer.cancel();
+        _invalidateHintRequest();
         state = state.copyWith(
           timeLeft: () => 0,
           isTimeOut: true,
@@ -198,6 +266,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
   Future<void> loadLevel(int levelNumber) async {
     _timer?.cancel();
+    _invalidateHintRequest(clearCache: true);
     state = const GameViewModelState(isLoading: true);
 
     try {
@@ -302,6 +371,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     int? seed,
   }) async {
     _timer?.cancel();
+    _invalidateHintRequest(clearCache: true);
     final int levelSeed = seed ?? DateTime.now().millisecondsSinceEpoch;
     final isSuperHard = _progressRepository.isSuperHardModeEnabled();
     final isBlurSolved = _progressRepository.isBlurSolvedTubesEnabled();
@@ -468,11 +538,13 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
   void selectTube(int index) {
     if (state.isComplete || state.isTimeOut || state.level == null || state.pouringFromIndex != null) return;
+    if (index < 0 || index >= state.level!.tubes.length) return;
 
-    if (state.hintFromIndex != null || state.hintToIndex != null) {
+    if (state.hintFromIndex != null || state.hintToIndex != null || state.hintMessage != null) {
       state = state.copyWith(
         hintFromIndex: () => null,
         hintToIndex: () => null,
+        hintMessage: () => null,
       );
     }
 
@@ -504,6 +576,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
   Future<void> _pourWater(int fromIndex, int toIndex) async {
     if (state.level == null) return;
+    _invalidateHintRequest();
     HapticFeedback.mediumImpact();
     state = state.copyWith(
       pouringFromIndex: () => fromIndex,
@@ -563,15 +636,20 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
 
       if (isComplete) {
         _timer?.cancel();
+        _cachedSolution = null;
+        _cachedSolutionKey = null;
         HapticFeedback.heavyImpact();
       }
 
-      if (_cachedSolution != null && _cachedSolution!.isNotEmpty) {
+      final previousKey = _cachedSolutionKey;
+      if (_cachedSolution != null && _cachedSolution!.isNotEmpty && previousKey == _stateKey(state.level!.tubes)) {
         final expectedMove = _cachedSolution!.first;
         if (expectedMove.fromIndex == fromIndex && expectedMove.toIndex == toIndex) {
           _cachedSolution!.removeAt(0);
+          _cachedSolutionKey = _stateKey(newTubes);
         } else {
           _cachedSolution = null;
+          _cachedSolutionKey = null;
         }
       }
 
@@ -606,7 +684,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     }
 
     void resetLevel() {
-      _cachedSolution = null;
+      _invalidateHintRequest(clearCache: true);
       _progressRepository.clearActiveLevelState();
       if (state.level != null) {
         if (state.isRandomMode) {
@@ -625,7 +703,7 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
     void undoMove() {
       if (!state.canUndo || state.level == null) return;
 
-      _cachedSolution = null;
+      _invalidateHintRequest(clearCache: true);
       HapticFeedback.lightImpact();
 
       final snapshot = state.moveHistory.last;
@@ -678,38 +756,91 @@ class GameViewModel extends StateNotifier<GameViewModelState> {
   }
 
   List<WaterSortMove>? _cachedSolution;
+  String? _cachedSolutionKey;
 
-  bool showHint() {
-    if (state.level == null || state.isComplete || state.isTimeOut) return false;
-    final solver = LevelSolver();
+  String _stateKey(List<Tube> tubes) => tubes
+      .map((tube) => '${tube.capacity}:${tube.colors.map((color) => color.toARGB32()).join(',')}')
+      .join('|');
 
-    if (_cachedSolution == null || _cachedSolution!.isEmpty) {
-      _cachedSolution = solver.solve(state.level!.tubes);
+  Future<bool> showHint() async {
+    if (!state.canShowHint) return false;
+    final level = state.level!;
+    final currentKey = _stateKey(level.tubes);
+
+    if (_cachedSolutionKey == currentKey && _cachedSolution != null) {
+      return _applyCachedHint(currentKey);
     }
 
-    if (_cachedSolution != null && _cachedSolution!.isNotEmpty) {
-      final firstMove = _cachedSolution!.first;
-      if (!isValidPour(firstMove.fromIndex, firstMove.toIndex)) {
-        _cachedSolution = solver.solve(state.level!.tubes);
+    final requestVersion = ++_hintRequestVersion;
+    final snapshot = level.tubes
+        .map((tube) => Tube(colors: List<Color>.from(tube.colors), capacity: tube.capacity))
+        .toList();
+    state = state.copyWith(
+      isSolvingHint: true,
+      hintMessage: () => null,
+      hintFromIndex: () => null,
+      hintToIndex: () => null,
+    );
+
+    late final LevelSolveResult result;
+    try {
+      result = await _hintRunner(snapshot);
+    } catch (error) {
+      if (mounted && requestVersion == _hintRequestVersion) {
+        state = state.copyWith(
+          isSolvingHint: false,
+          hintMessage: () => 'Unable to calculate a hint. Try again.',
+        );
       }
+      return false;
     }
 
-    if (_cachedSolution != null && _cachedSolution!.isNotEmpty) {
-      HapticFeedback.lightImpact();
-      final nextMove = _cachedSolution!.first;
-      state = state.copyWith(
-        selectedTubeIndex: () => null,
-        hintFromIndex: () => nextMove.fromIndex,
-        hintToIndex: () => nextMove.toIndex,
-      );
-      return true;
+    if (!mounted || requestVersion != _hintRequestVersion) return false;
+    if (state.level == null || _stateKey(state.level!.tubes) != currentKey || state.isComplete || state.isTimeOut) {
+      state = state.copyWith(isSolvingHint: false);
+      return false;
     }
+
+    state = state.copyWith(isSolvingHint: false);
+    if (result.status == LevelSolveStatus.found) {
+      _cachedSolution = List<WaterSortMove>.from(result.moves);
+      _cachedSolutionKey = currentKey;
+      return _applyCachedHint(currentKey);
+    }
+    _cachedSolution = null;
+    _cachedSolutionKey = null;
+    state = state.copyWith(
+      hintMessage: () => result.status == LevelSolveStatus.limitReached
+          ? 'Search limit reached. Try undoing a move.'
+          : 'Could not find a solution. Undo a move or restart.',
+    );
     return false;
+  }
+
+  bool _applyCachedHint(String currentKey) {
+    if (!mounted || _cachedSolutionKey != currentKey || _cachedSolution == null || _cachedSolution!.isEmpty) {
+      return false;
+    }
+    final nextMove = _cachedSolution!.first;
+    if (!isValidPour(nextMove.fromIndex, nextMove.toIndex)) {
+      _cachedSolution = null;
+      _cachedSolutionKey = null;
+      return false;
+    }
+    HapticFeedback.lightImpact();
+    state = state.copyWith(
+      selectedTubeIndex: () => null,
+      hintFromIndex: () => nextMove.fromIndex,
+      hintToIndex: () => nextMove.toIndex,
+      hintMessage: () => null,
+    );
+    return true;
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _invalidateHintRequest(clearCache: true);
     super.dispose();
   }
 }

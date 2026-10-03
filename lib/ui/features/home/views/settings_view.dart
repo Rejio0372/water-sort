@@ -421,18 +421,6 @@ class SettingsView extends ConsumerWidget {
                       ),
                       _buildDivider(),
                       _buildSettingRow(
-                        icon: Icons.lightbulb_rounded,
-                        iconColor: const Color(0xFFFFB300),
-                        title: 'HINT HELPER',
-                        description:
-                            'Show a hint button during gameplay to highlight the next optimal move.',
-                        value: state.isHintHelperEnabled,
-                        onTap: () => ref
-                            .read(homeViewModelProvider.notifier)
-                            .toggleHintHelper(),
-                      ),
-                      _buildDivider(),
-                      _buildSettingRow(
                         icon: Icons.visibility_off_rounded,
                         iconColor: const Color(0xFFA855F7),
                         title: 'SUPER HARD DIFFICULTY',

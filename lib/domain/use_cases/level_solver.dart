@@ -1,6 +1,67 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:watersort/domain/models/tube.dart';
+
+enum LevelSolveStatus { found, limitReached, noSolution }
+
+class LevelSolveResult {
+  const LevelSolveResult({
+    required this.status,
+    required this.moves,
+    required this.visited,
+    required this.maxVisited,
+    required this.maxDepth,
+    required this.maxDuration,
+  });
+
+  final LevelSolveStatus status;
+  final List<WaterSortMove> moves;
+  final int visited;
+  final int maxVisited;
+  final int maxDepth;
+  final Duration maxDuration;
+
+  bool get found => status == LevelSolveStatus.found;
+  bool get limitReached => status == LevelSolveStatus.limitReached;
+  int get visitedCount => visited;
+  List<WaterSortMove> get solution => moves;
+  bool get isFound => found;
+
+  factory LevelSolveResult.fromMap(Map<dynamic, dynamic> map) {
+    final statusName = map['status'] as String? ?? 'noSolution';
+    final status = LevelSolveStatus.values.firstWhere(
+      (value) => value.name == statusName,
+      orElse: () => LevelSolveStatus.noSolution,
+    );
+    final moves = (map['moves'] as List<dynamic>? ?? const [])
+        .map((move) {
+          final pair = move as List;
+          return WaterSortMove(
+            fromIndex: pair[0] as int,
+            toIndex: pair[1] as int,
+          );
+        })
+        .toList();
+    return LevelSolveResult(
+      status: status,
+      moves: moves,
+      visited: map['visited'] as int? ?? 0,
+      maxVisited: map['maxVisited'] as int? ?? 150000,
+      maxDepth: map['maxDepth'] as int? ?? 384,
+      maxDuration: Duration(milliseconds: map['maxDurationMs'] as int? ?? 4000),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'status': status.name,
+        'moves': moves.map((move) => [move.fromIndex, move.toIndex]).toList(),
+        'visited': visited,
+        'maxVisited': maxVisited,
+        'maxDepth': maxDepth,
+        'maxDurationMs': maxDuration.inMilliseconds,
+      };
+}
 
 class WaterSortMove {
   final int fromIndex;
@@ -9,15 +70,40 @@ class WaterSortMove {
 }
 
 class LevelSolver {
-  List<WaterSortMove>? solve(List<Tube> initialTubes, {int maxVisited = 150000}) {
+  static const int defaultMaxVisited = 150000;
+  static const int defaultMaxDepth = 384;
+  static const Duration defaultMaxDuration = Duration(seconds: 4);
+
+  List<WaterSortMove>? solve(
+    List<Tube> initialTubes, {
+    int maxVisited = defaultMaxVisited,
+    int maxDepth = defaultMaxDepth,
+    Duration maxDuration = defaultMaxDuration,
+  }) {
+    final result = solveDetailed(
+      initialTubes,
+      maxVisited: maxVisited,
+      maxDepth: maxDepth,
+      maxDuration: maxDuration,
+    );
+    return result.found ? result.moves : null;
+  }
+
+  LevelSolveResult solveDetailed(
+    List<Tube> initialTubes, {
+    int maxVisited = defaultMaxVisited,
+    int maxDepth = defaultMaxDepth,
+    Duration maxDuration = defaultMaxDuration,
+  }) {
     final visited = <String>{};
+    final stopwatch = Stopwatch()..start();
+    var hitLimit = false;
     List<WaterSortMove>? result;
 
     String serializeState(List<Tube> tubes) {
       final keys = tubes.map((t) {
-        if (t.isEmpty) return 'E:${t.capacity}';
-        final cStr = t.colors.map((c) => c.value.toRadixString(16)).join(',');
-        return '$cStr:${t.capacity}';
+        final colors = t.colors.map((c) => c.toARGB32().toRadixString(16)).join(',');
+        return '$colors:${t.capacity}';
       }).toList()..sort();
       return keys.join('|');
     }
@@ -26,21 +112,30 @@ class LevelSolver {
       return tubes.every((t) => t.isEmpty || t.isSolved);
     }
 
-    bool dfs(List<Tube> currentTubes, List<WaterSortMove> path) {
-      if (visited.length >= maxVisited) return false;
-
-      if (isComplete(currentTubes)) {
-        result = List.from(path);
+    bool budgetExceeded() {
+      if (visited.length >= maxVisited || stopwatch.elapsed >= maxDuration) {
+        hitLimit = true;
         return true;
+      }
+      return false;
+    }
+
+    bool dfs(List<Tube> currentTubes, List<WaterSortMove> path) {
+      if (isComplete(currentTubes)) {
+        result = List<WaterSortMove>.from(path);
+        return true;
+      }
+      if (budgetExceeded() || path.length >= maxDepth) {
+        if (path.length >= maxDepth) hitLimit = true;
+        return false;
       }
 
       final stateKey = serializeState(currentTubes);
-      if (visited.contains(stateKey)) return false;
-      visited.add(stateKey);
+      if (!visited.add(stateKey)) return false;
 
       final moves = _getValidMoves(currentTubes);
-
       for (final move in moves) {
+        if (budgetExceeded()) return false;
         if (path.isNotEmpty) {
           final lastMove = path.last;
           if (lastMove.fromIndex == move.toIndex && lastMove.toIndex == move.fromIndex) {
@@ -55,12 +150,24 @@ class LevelSolver {
           path.removeLast();
         }
       }
-
       return false;
     }
 
     dfs(initialTubes, []);
-    return result;
+    stopwatch.stop();
+    final status = result != null
+        ? LevelSolveStatus.found
+        : hitLimit
+            ? LevelSolveStatus.limitReached
+            : LevelSolveStatus.noSolution;
+    return LevelSolveResult(
+      status: status,
+      moves: result ?? const [],
+      visited: visited.length,
+      maxVisited: maxVisited,
+      maxDepth: maxDepth,
+      maxDuration: maxDuration,
+    );
   }
 
   List<WaterSortMove> _getValidMoves(List<Tube> tubes) {
@@ -76,7 +183,6 @@ class LevelSolver {
     for (int i = 0; i < tubes.length; i++) {
       final fromTube = tubes[i];
       if (fromTube.isEmpty || fromTube.isSolved) continue;
-
       final colorToMove = fromTube.topColor!;
       int countToMove = 0;
       for (int k = fromTube.colors.length - 1; k >= 0; k--) {
@@ -86,22 +192,17 @@ class LevelSolver {
           break;
         }
       }
-
       final fromIsMono = fromTube.colors.every((c) => c == colorToMove);
 
       for (int j = 0; j < tubes.length; j++) {
         if (i == j) continue;
         final toTube = tubes[j];
-
         if (toTube.isFull) continue;
-
         if (toTube.isEmpty) {
-          if (fromIsMono) continue;
-          if (j != firstEmptyIndex) continue;
-        } else {
-          if (toTube.topColor != colorToMove) continue;
+          if (fromIsMono || j != firstEmptyIndex) continue;
+        } else if (toTube.topColor != colorToMove) {
+          continue;
         }
-
         final space = toTube.capacity - toTube.colors.length;
         final pourCount = min(countToMove, space);
         if (pourCount == 0) continue;
@@ -109,9 +210,8 @@ class LevelSolver {
         int score = 0;
         final willSolveTarget = (toTube.colors.length + pourCount == toTube.capacity) &&
             (toTube.isEmpty || toTube.colors.every((c) => c == colorToMove));
-        final willEmptySource = (fromTube.colors.length == pourCount);
+        final willEmptySource = fromTube.colors.length == pourCount;
         final willRevealNewColor = !willEmptySource && countToMove == pourCount;
-
         if (willSolveTarget) {
           score += 150;
         } else if (willEmptySource) {
@@ -119,23 +219,13 @@ class LevelSolver {
         } else if (willRevealNewColor) {
           score += 50;
         } else if (!toTube.isEmpty) {
-          if (pourCount == countToMove) {
-            score += 35;
-          } else {
-            score += 10;
-          }
+          score += pourCount == countToMove ? 35 : 10;
         } else {
-          if (fromTube.colors.length - pourCount > 0) {
-            score += 25;
-          } else {
-            score += 5;
-          }
+          score += fromTube.colors.length - pourCount > 0 ? 25 : 5;
         }
-
         moves.add(_ScoredMove(move: WaterSortMove(fromIndex: i, toIndex: j), score: score));
       }
     }
-
     moves.sort((a, b) => b.score.compareTo(a.score));
     return moves.map((m) => m.move).toList();
   }
@@ -146,7 +236,6 @@ class LevelSolver {
     if (fromTube.isEmpty || toTube.isFull) return null;
     final colorToMove = fromTube.topColor!;
     if (!toTube.canReceive(colorToMove)) return null;
-
     int countToMove = 0;
     for (int i = fromTube.colors.length - 1; i >= 0; i--) {
       if (fromTube.colors[i] == colorToMove) {
@@ -155,16 +244,12 @@ class LevelSolver {
         break;
       }
     }
-
-    final availableSpace = toTube.capacity - toTube.colors.length;
-    final pourCount = min(countToMove, availableSpace);
+    final pourCount = min(countToMove, toTube.capacity - toTube.colors.length);
     if (pourCount == 0) return null;
-
     final newFromColors = List<Color>.from(fromTube.colors)
       ..removeRange(fromTube.colors.length - pourCount, fromTube.colors.length);
     final newToColors = List<Color>.from(toTube.colors)
       ..addAll(List.filled(pourCount, colorToMove));
-
     final newTubes = List<Tube>.from(tubes);
     newTubes[fromIndex] = fromTube.copyWith(colors: newFromColors);
     newTubes[toIndex] = toTube.copyWith(colors: newToColors);

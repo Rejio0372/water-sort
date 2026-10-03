@@ -1,0 +1,43 @@
+name: Solver checks and APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get --enforce-lockfile
+      # The upstream app contains existing lint warnings and deprecations.
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Regression tests
+        run: flutter test --exclude-tags benchmark --reporter expanded
+      - name: Solver timing samples
+        run: flutter test --tags benchmark --reporter expanded | tee solver-timings.txt
+      - name: Build installable Android APK
+        run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: water-sort-solver
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            solver-timings.txt
+          if-no-files-found: error
+          retention-days: 14

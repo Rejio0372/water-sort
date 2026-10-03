@@ -1,5 +1,44 @@
 # Water Sort
 
+## Solver fork
+
+This fork adds an always-visible **HINT** button beside the move controls.
+Tap it to calculate a complete solution offline and see the next pour, such as
+**Pour tube 2 into tube 5**. Tubes are numbered from left to right, top to bottom;
+the source glows gold and the destination glows green. Follow the instruction,
+then tap HINT again for the next step. Hints do not pour automatically or add moves.
+
+The search runs in a background isolate. Following the proposed solution reuses
+the remaining steps; changing the board, undoing, restarting, or loading another
+level invalidates stale results. A search has a four-second, 150,000-state and
+384-move budget. Reaching a budget is reported separately from an exhausted
+search. Solutions are valid paths, and are not guaranteed to be the shortest.
+
+中文：点击底部右侧灯泡按钮，查看“第 X 瓶倒入第 Y 瓶”的下一步指令。
+按试管编号操作：金色是来源瓶，绿色是目标瓶。计算完全离线，按提示继续玩
+会复用已计算的方案。复杂局面可能达到搜索上限；此时可撤销或重开。
+
+### Build and verify
+
+Requires Flutter 3.44 or later and Dart 3.12.2 or later. Run:
+
+```sh
+flutter pub get
+flutter test --exclude-tags benchmark
+flutter test --tags benchmark --reporter expanded
+flutter build apk --release
+```
+
+The **Solver checks and APK** GitHub Actions workflow runs analysis, regression
+tests, timing samples, and an APK build. Its artifact contains an installable APK
+and timing logs. Timing samples measure solver CPU time separately from puzzle
+generation; they are not a guarantee for every phone or puzzle.
+
+The fork uses the Android app ID `com.sidhant.watersort.solver` and name
+**Water Sort Solver**, so it can coexist with the original game. Without a
+configured release keystore, local and CI APKs use the development signing key.
+The original GPL v3 license remains in force.
+
 A relaxing and addictive color-sorting puzzle game built with Flutter.
 
 ---
